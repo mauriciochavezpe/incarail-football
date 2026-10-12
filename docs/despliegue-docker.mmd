@@ -1,0 +1,22 @@
+flowchart LR
+    B["🌐 Navegador"]
+
+    subgraph HOST["docker compose · red interna"]
+        direction LR
+        WEB["web<br/>nginx:1.28-alpine<br/>SPA compilada (dist/)<br/>:5173 → 80"]
+        API["api<br/>nginx:1.28-alpine<br/>FastCGI → app:9000<br/>:8000 → 80"]
+        APP["app<br/>php:8.5-fpm-alpine<br/>Laravel 13 + Passport<br/>entrypoint: keys · migrate · seed · cache"]
+        DB[("db<br/>postgres:17-alpine<br/>datos + caché del limitador")]
+        V1[("volumen app-storage<br/>APP_KEY · llaves Passport")]
+        V2[("volumen db-data")]
+    end
+
+    FD["⚽ football-data.org"]
+
+    B -- "HTML / JS" --> WEB
+    B -- "JSON · Bearer" --> API
+    API --> APP
+    APP --> DB
+    APP --- V1
+    DB --- V2
+    APP -- "≤ 10 req/min" --> FD

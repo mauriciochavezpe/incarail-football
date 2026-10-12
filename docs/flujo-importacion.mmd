@@ -1,0 +1,33 @@
+sequenceDiagram
+    autonumber
+    actor U as Analista
+    participant SPA as SPA Vue
+    participant API as API Laravel
+    participant IMP as CompetitionImportService
+    participant RL as RateLimiter (caché)
+    participant FD as football-data.org
+    participant DB as Base de datos
+
+    U->>SPA: "Importar liga" (PL)
+    SPA->>API: GET /competitions/PL (Bearer)
+    API->>API: Passport + permiso read Competition
+    API->>IMP: show("PL", canImport = true)
+    IMP->>DB: ¿PL importada y vigente (TTL)?
+    alt Copia vigente
+        DB-->>IMP: liga + equipos
+        IMP-->>SPA: 200 · meta.source = database
+    else Hay que importar
+        IMP->>IMP: lock por liga (evita doble importación)
+        IMP->>RL: acquire(2)
+        alt Sin cupo
+            RL-->>IMP: RateLimitReached (retry_after)
+            IMP-->>SPA: copia anterior con meta.stale = true,<br/>o 429 + Retry-After si no hay copia
+        else Con cupo
+            IMP->>FD: GET /v4/competitions/PL
+            IMP->>FD: GET /v4/competitions/PL/teams (incluye squad)
+            FD-->>RL: cabeceras de cupo restante
+            IMP->>DB: transacción: upsert competición, equipos,<br/>jugadores y pivote (sin duplicados)
+            IMP-->>SPA: 200 · meta.source = football-data
+        end
+    end
+    SPA-->>U: Equipos de la liga o aviso entendible

@@ -1,0 +1,4 @@
+# Los scripts se ejecutan dentro de contenedores Linux: siempre con fin de línea LF,
+# aunque el repo se clone en Windows (core.autocrlf).
+*.sh text eol=lf
+backend/docker/* text eol=lf

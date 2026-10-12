@@ -1,0 +1,37 @@
+flowchart TB
+    U["👤 Persona usuaria · navegador en celular o escritorio"]
+
+    subgraph SPA["SPA · Vue 3 + Vue Router"]
+        direction LR
+        S1["Login y sesión<br/>token Bearer + reglas CASL"]
+        S2["Ligas · Equipos · Jugadores<br/>Usuarios · Roles"]
+        S3["Guardas de ruta y menú<br/>según permisos"]
+    end
+
+    subgraph API["API REST · Laravel 13 · PHP 8.5"]
+        direction TB
+        A1["🔐 Passport · guard auth:api<br/>tokens de acceso personal"]
+        A2["Middleware permission:action,Subject<br/>ACL decidida en el servidor"]
+        A3["Controladores delgados<br/>Form Requests · Resources"]
+        A4["Servicios<br/>CompetitionCatalog · CompetitionImport · Auth · User · Role"]
+        A7["ApiErrorRenderer<br/>JSON único · 401 403 404 422 429 502 503"]
+        subgraph EXT["Integración aislada"]
+            direction LR
+            A5["FootballDataClient<br/>única clase que sale a internet"]
+            A6["⏱ FootballDataRateLimiter<br/>ventana deslizante global<br/>máx. 10 peticiones / 60 s"]
+        end
+    end
+
+    DB[("Base de datos · Eloquent<br/>users · roles · permissions<br/>competitions · teams · players<br/>oauth_* · cache (locks y ventana)")]
+    FD["⚽ football-data.org v4<br/>plan gratuito: 10 req/min"]
+
+    U --> SPA
+    SPA -- "HTTPS · Authorization: Bearer" --> A1
+    A1 --> A2 --> A3 --> A4
+    A3 -. errores .-> A7
+    A4 -- "lee y hace upsert<br/>(siempre primero la copia local)" --> DB
+    A4 -- "solo si no hay copia vigente (TTL)" --> A5
+    A5 -- "1 · pide cupo" --> A6
+    A6 -- "estado atómico en caché" --> DB
+    A5 -- "2 · GET con X-Auth-Token (.env)" --> FD
+    FD -. "cabeceras de cupo restante / 429" .-> A6
